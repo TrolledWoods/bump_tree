@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms, clippy::all, clippy::pedantic)]
 use bumpalo::Bump;
 use impl_twice::impl_twice;
 use std::fmt::{self, Debug};
@@ -13,20 +14,25 @@ pub struct Tree<T> {
     // * All the pointers in the tree point to inside the
     // bump allocator. Since the bump allocator uses heap allocations,
     // moving the Ast won't invalidate the pointers.
-    // * The pointers are all 'static Box:es, Box:es because I
-    // wanted to make sure that they are dropped, and 'static
-    // because this datastructure itself makes sure that
-    // the bump allocator isn't deallocated before the tree is,
-    // so we want the borrow checker to shut up for a second.
     bump: Bump,
     root: Option<InternalNode<T>>,
     incomplete: Vec<InternalNode<T>>,
+}
+
+impl<T> Default for Tree<T>
+where
+    T: MetaData,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Tree<T>
 where
     T: MetaData,
 {
+    #[must_use]
     pub fn new() -> Self {
         let bump = Bump::new();
         Self {
@@ -215,12 +221,11 @@ impl<T> Node<'_, T>, NodeMut<'_, T> {
         }
     }
 
-    #[allow(unused)]
+    #[must_use]
     pub fn child_count(&self) -> usize {
         self.children_slice().len()
     }
 
-    #[allow(unused)]
     pub fn children(&self) -> impl Iterator<Item = Node<'_, T>> + DoubleEndedIterator + ExactSizeIterator {
         self.children_slice().iter().map(|v| Node { internal: v })
     }
@@ -228,7 +233,6 @@ impl<T> Node<'_, T>, NodeMut<'_, T> {
 );
 
 impl<T> NodeMut<'_, T> {
-    #[allow(unused)]
     pub fn children_mut(
         &mut self,
     ) -> impl Iterator<Item = NodeMut<'_, T>> + DoubleEndedIterator + ExactSizeIterator {
@@ -246,10 +250,8 @@ impl<T> DerefMut for NodeMut<'_, T> {
 
 struct InternalNode<T> {
     // Invariant: These children have to have been
-    // allocated within the same tree. This is because
-    // we play with lifetimes here, and if nodes from
-    // different trees were to come in here they would
-    // not work because the lifetimes are different.
+    // allocated within the same tree as this node is
+    // allocated within.
     children: NonNull<[InternalNode<T>]>,
     value: T,
 }
